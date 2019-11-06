@@ -140,43 +140,41 @@ int main(int argc, char* argv[]) {
     std::cout << "beta = " << beta << std::endl;
     double prob = 1 - std::exp(-2 * beta);
 
-    for (unsigned int j = 0; j < p.num_samples; ++j) {
-      for (unsigned int mcs = 0; mcs < p.therm + p.interval * p.num_samples; ++mcs) {
-        // initialize cluster information
-        std::fill(fragments.begin(), fragments.end(), fragment_t());
-        
-        // cluster generation
+    for (unsigned int mcs = 0; mcs < p.therm + p.interval * p.num_samples; ++mcs) {
+      // initialize cluster information
+      std::fill(fragments.begin(), fragments.end(), fragment_t());
+      
+      // cluster generation
+      for (int b = 0; b < lattice.num_bonds(); ++b) {
+        if (spins[lattice.source(b)] == spins[lattice.target(b)] && r_uniform01(eng) < prob)
+          unify(fragments, lattice.source(b), lattice.target(b));
+      }
+      
+      // assign cluster id & accumulate cluster properties
+      int nc = 0;
+      for (auto& f : fragments) {
+        if (f.is_root()) f.set_id(nc++);
+      }
+      for (auto& f : fragments) f.set_id(cluster_id(fragments, f));
+      
+      // flip spins
+      for (int c = 0; c < nc; ++c) flip[c] = (r_uniform01(eng) < 0.5);
+      for (int s = 0; s < lattice.num_sites(); ++s)
+        if (flip[fragments[s].id()]) spins[s] ^= 1;
+      
+      if (mcs >= p.therm && (mcs - p.therm) % p.interval == 0) {
+        double ene = 0;
         for (int b = 0; b < lattice.num_bonds(); ++b) {
-          if (spins[lattice.source(b)] == spins[lattice.target(b)] && r_uniform01(eng) < prob)
-            unify(fragments, lattice.source(b), lattice.target(b));
+          ene -= (spins[lattice.source(b)] == spins[lattice.target(b)] ? 1.0 : -1.0);
         }
+        double mag = 0;
+        for (int s = 0; s < lattice.num_sites(); ++s) mag += 2 * spins[s] - 1;
         
-        // assign cluster id & accumulate cluster properties
-        int nc = 0;
-        for (auto& f : fragments) {
-          if (f.is_root()) f.set_id(nc++);
-        }
-        for (auto& f : fragments) f.set_id(cluster_id(fragments, f));
-
-        // flip spins
-        for (int c = 0; c < nc; ++c) flip[c] = (r_uniform01(eng) < 0.5);
+        // output
+        ofslist << p.length << '\t' << beta << '\t' << ene / lattice.num_sites() << '\t' << mag / lattice.num_sites() << std::endl;
         for (int s = 0; s < lattice.num_sites(); ++s)
-          if (flip[fragments[s].id()]) spins[s] ^= 1;
-
-        if (mcs >= p.therm && (mcs - p.therm) % p.interval == 0) {
-          double ene = 0;
-          for (int b = 0; b < lattice.num_bonds(); ++b) {
-            ene -= (spins[lattice.source(b)] == spins[lattice.target(b)] ? 1.0 : -1.0);
-          }
-          double mag = 0;
-          for (int s = 0; s < lattice.num_sites(); ++s) mag += 2 * spins[s] - 1;
-
-          // output
-          ofslist << p.length << '\t' << beta << '\t' << ene / lattice.num_sites() << '\t' << mag / lattice.num_sites() << std::endl;
-          for (int s = 0; s < lattice.num_sites(); ++s)
-            ofsconf << 2 * spins[s] - 1 << ' ';
-          ofsconf << std::endl;
-        }
+          ofsconf << 2 * spins[s] - 1 << ' ';
+        ofsconf << std::endl;
       }
     }
   }
