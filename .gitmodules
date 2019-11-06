@@ -1,0 +1,3 @@
+[submodule "tool/cluster-mc"]
+	path = tool/cluster-mc
+	url = https://github.com/wistaria/cluster-mc.git
